@@ -2,9 +2,10 @@ import AdmZip from "adm-zip";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { ensureAuthors } from "./authors";
 import { getDb, type RepoRow } from "./db";
 import { REPOS_DIR, ensureDataDirs } from "./paths";
-import { cloneRepo, countCommits, headInfo, listAuthors } from "./git";
+import { cloneRepo, headInfo, scanHeadAuthors } from "./git";
 import type { RepoSource, RepoSummary } from "./types";
 
 export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
@@ -115,12 +116,13 @@ export async function ingestUpload(id: number, zipBuffer: Buffer): Promise<void>
 
 async function indexRepo(id: number, gitDir: string): Promise<void> {
   setStatus(id, "indexing", "Reading repository");
-  const commitCount = await countCommits(gitDir);
-  if (commitCount === 0) {
+  // The metrics universe: non-merge commits reachable from HEAD (H-bar).
+  const scan = await scanHeadAuthors(gitDir);
+  if (scan.totalCommits === 0) {
     throw new Error("repository contains no commits");
   }
-  const authors = await listAuthors(gitDir);
   const { branch, sha } = await headInfo(gitDir);
+  ensureAuthors(id, scan);
   getDb()
     .prepare(
       `UPDATE repos
@@ -129,7 +131,7 @@ async function indexRepo(id: number, gitDir: string): Promise<void> {
            updated_at = datetime('now')
        WHERE id = ?`,
     )
-    .run(gitDir, branch, sha, commitCount, authors.length, id);
+    .run(gitDir, branch, sha, scan.totalCommits, scan.identities.length, id);
 }
 
 async function failRepo(id: number, err: unknown): Promise<void> {

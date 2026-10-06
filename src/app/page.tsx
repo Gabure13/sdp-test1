@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RepoSummary } from "@/lib/types";
 
@@ -73,6 +74,7 @@ export default function RepositoriesPage() {
   const [cloneUrl, setCloneUrl] = useState("");
   const [cloning, setCloning] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [hasUpload, setHasUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
@@ -129,6 +131,7 @@ export default function RepositoriesPage() {
       });
       if (!response.ok) throw new Error(await readError(response));
       if (fileInputRef.current) fileInputRef.current.value = "";
+      setHasUpload(false);
       await refresh();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "upload failed");
@@ -158,6 +161,9 @@ export default function RepositoriesPage() {
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Add repositories by cloning a remote URL or uploading a zip archive.
         </p>
+        <Link href="/metrics" className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+          Open metrics dashboard →
+        </Link>
       </header>
 
       {(loadError || actionError) && (
@@ -204,12 +210,13 @@ export default function RepositoriesPage() {
               ref={fileInputRef}
               type="file"
               accept=".zip"
+              onChange={(event) => setHasUpload(Boolean(event.target.files?.length))}
               className="min-w-0 flex-1 rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-transparent file:text-sm file:font-medium dark:border-gray-700"
               disabled={uploading}
             />
             <button
               type="submit"
-              disabled={uploading || !fileInputRef.current?.files?.[0]}
+              disabled={uploading || !hasUpload}
               className="shrink-0 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
             >
               {uploading ? "Adding…" : "Upload"}
@@ -264,7 +271,16 @@ export default function RepositoriesPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 font-medium">
                         <SourceBadge repo={repo} />
-                        {repo.name}
+                        {repo.status === "ready" ? (
+                          <Link
+                            href={`/repos/${repo.id}`}
+                            className="hover:underline"
+                          >
+                            {repo.name}
+                          </Link>
+                        ) : (
+                          repo.name
+                        )}
                       </div>
                       <div className="mt-0.5 max-w-[22rem] truncate text-xs text-gray-500 dark:text-gray-400">
                         {repo.source_detail}

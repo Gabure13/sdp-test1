@@ -35,36 +35,71 @@ export async function gitVersion(): Promise<string> {
   return out.trim();
 }
 
-export async function countCommits(gitDir: string): Promise<number> {
-  const out = await execGit(["rev-list", "--all", "--count"], gitDir);
-  return parseInt(out.trim(), 10) || 0;
-}
-
-export interface AuthorIdentity {
+export interface ScannedAuthorIdentity {
+  /** Raw identity exactly as recorded in the commit. */
   name: string;
   email: string;
+  /** Identity after applying the repository's committed .mailmap. */
+  canonicalName: string;
+  canonicalEmail: string;
+  /** Number of non-merge commits in the HEAD history authored here. */
+  commits: number;
+}
+
+export interface AuthorScanResult {
+  /** Total non-merge commits reachable from HEAD (the metrics universe H-bar). */
+  totalCommits: number;
+  identities: ScannedAuthorIdentity[];
 }
 
 /**
- * Distinct (name, email) author identities across all refs. This is the raw
- * identity set; mailmap/manual merging happens later in the metrics layer.
+ * Scan the HEAD history (non-merge commits only) collecting each distinct raw
+ * author identity, its commit count, and its mailmap-resolved counterpart.
+ * One log pass: %an/%ae are raw, %aN/%aE apply the committed .mailmap.
  */
-export async function listAuthors(gitDir: string): Promise<AuthorIdentity[]> {
-  const out = await execGit(["log", "--all", "--format=%an%x09%ae"], gitDir);
-  const seen = new Set<string>();
-  const authors: AuthorIdentity[] = [];
-  for (const line of out.split("\n")) {
-    if (!line) continue;
-    const sep = line.indexOf("\t");
-    if (sep === -1) continue;
-    const name = line.slice(0, sep);
-    const email = line.slice(sep + 1);
-    const key = `${name}\u0000${email}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    authors.push({ name, email });
+export async function scanHeadAuthors(gitDir: string): Promise<AuthorScanResult> {
+  let out: string;
+  try {
+    out = await execGit(
+      [
+        // Always resolve through the .mailmap committed at HEAD. Without this,
+        // git looks for a worktree .mailmap relative to the process cwd, which
+        // breaks for non-bare (uploaded) repositories. Missing blob = no-op.
+        "-c",
+        "mailmap.blob=HEAD:.mailmap",
+        "log",
+        "HEAD",
+        "--no-merges",
+        "--format=%an%x00%ae%x00%aN%x00%aE",
+        "-z",
+      ],
+      gitDir,
+    );
+  } catch (err) {
+    // An unborn HEAD (no commits yet) is not an error for the caller.
+    if (
+      err instanceof GitError &&
+      /does not have any commits|ambiguous argument/i.test(err.message)
+    ) {
+      return { totalCommits: 0, identities: [] };
+    }
+    throw err;
   }
-  return authors;
+  const byRaw = new Map<string, ScannedAuthorIdentity>();
+  let totalCommits = 0;
+  const fields = out.split("\0");
+  for (let i = 0; i + 3 < fields.length; i += 4) {
+    totalCommits++;
+    const [name, email, canonicalName, canonicalEmail] = fields.slice(i, i + 4);
+    const key = `${name}\u0000${email}`;
+    const existing = byRaw.get(key);
+    if (existing) {
+      existing.commits++;
+    } else {
+      byRaw.set(key, { name, email, canonicalName, canonicalEmail, commits: 1 });
+    }
+  }
+  return { totalCommits, identities: [...byRaw.values()] };
 }
 
 export async function headInfo(

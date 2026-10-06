@@ -1,6 +1,6 @@
 # sdp-test1 — RAT (Repo Analysis Tool)
 
-A local web dashboard that ingests git repositories (zip upload or deep clone of a remote URL), stores them in SQLite, and will compute per-author, per-file, per-directory, and repository metrics.
+A local web dashboard that ingests git repositories (zip upload or deep clone of a remote URL), stores them in SQLite, and computes per-author, per-file, per-directory, repository, and commit-set metrics.
 
 Built with Next.js (App Router), TypeScript, Tailwind CSS, and SQLite (`better-sqlite3`).
 
@@ -45,6 +45,7 @@ npm run build:native           # compile better-sqlite3 from source
 | `npm run build`     | Create an optimized production build                 |
 | `npm run start`     | Serve the production build                           |
 | `npm run lint`      | Run ESLint                                           |
+| `npm test`          | Run isolated Git/SQLite metric correctness tests     |
 | `npm run build:native` | (Re)build the better-sqlite3 native module from source |
 
 ## Features (so far)
@@ -56,15 +57,38 @@ npm run build:native           # compile better-sqlite3 from source
 - Registry persisted in SQLite; multiple repositories supported; repos can be removed (deletes stored data).
 - Zip safety: entries that try to escape the extraction directory (zip-slip) are rejected.
 
+**Author merging** — the second piece of RAT:
+
+- Raw author identities are scanned from the HEAD history (non-merge commits) at ingest time.
+- A committed `.mailmap` is applied automatically: identities it maps are joined into one author.
+- Authors can be **merged manually** from the repo's author page (when no mailmap covers them) and **unmerged** again; merges are recorded per repository and survive restarts.
+- Old repositories are backfilled on first view, so repos ingested before this feature get authors too.
+
+**Metrics dashboard** — open `/metrics` or click **Open metrics dashboard**:
+
+- Added lines, removed lines, growth, churn, modifications, modification frequency, and churn per commit for files, recursive directories, and repository roots.
+- Author modifications, churn, and ownership use the current mailmap/manual merge groups. Merging authors does not require re-indexing metrics.
+- Combine repositories, filter by exact file or recursive directory, pick an author, set a committer-date range (inclusive start / exclusive end), or select commits manually with searchable, paginated checkboxes.
+- Activity and ownership charts, repository comparisons, paginated object tables, and CSV export. Click an object path to drill down.
+- Git detects binary changes and renames at 50% similarity. Pure renames have zero churn; edited renames count only edits on the new path. Deletions remain measurable on the deleted path.
+- The first analysis streams non-merge commits reachable from the imported HEAD into SQLite in batches; progress is shown. Subsequent filters reuse the index and cached snapshot file lists. Unchanged and deleted text paths are included, even for disjoint commit selections.
+- Rates use the size of the selected commit set H, including zero-change commits. The author filter displays that author's contribution without changing H; ownership divides by all-author churn on the chosen object within its repository. An empty H produces zero rates.
+- Tests cover initial commits, directory rollups, binary exclusion, unusual paths, renames, deletions, date boundaries, empty selections, merges, author ownership, and multi-repo isolation. Performance on 100,000-commit repositories has not yet been benchmarked.
+
 ### API
 
-| Method   | Route                | Description                                  |
-| -------- | -------------------- | -------------------------------------------- |
-| `GET`    | `/api/repos`         | List repositories with status and counts     |
-| `POST`   | `/api/repos/clone`   | Body `{ "url": "https://..." }` — start clone |
-| `POST`   | `/api/repos/upload`  | Multipart form with a `file` zip field       |
-| `GET`    | `/api/repos/:id`     | Fetch one repository                         |
-| `DELETE` | `/api/repos/:id`     | Remove repository and its stored data        |
+| Method   | Route                              | Description                                       |
+| -------- | ---------------------------------- | ------------------------------------------------- |
+| `GET`    | `/api/repos`                       | List repositories with status and counts           |
+| `POST`   | `/api/repos/clone`                 | Body `{ "url": "https://..." }` — start clone          |
+| `POST`   | `/api/repos/upload`                | Multipart form with a `file` zip field            |
+| `GET`    | `/api/repos/:id`                   | Fetch one repository                              |
+| `DELETE` | `/api/repos/:id`                   | Remove repository and its stored data             |
+| `GET`    | `/api/repos/:id/authors`           | Effective authors with raw identities + merges    |
+| `POST`   | `/api/repos/:id/authors/merge`     | Body `{ fromGroupId, toGroupId }` — merge authors |
+| `DELETE` | `/api/repos/:id/authors/merge`     | `?fromGroupId=N` — undo a manual merge            |
+| `GET`    | `/api/metrics`                    | Current indexing status and processed counts      |
+| `POST`   | `/api/metrics`                    | Metrics for `{ repoIds, start?, end?, path?, kind?, authorIds?, commits?, search?, offset? }` |
 
 ## Project structure
 
@@ -72,12 +96,18 @@ npm run build:native           # compile better-sqlite3 from source
 src/
   lib/
     paths.ts          # .data/ layout (db, repos)
-    db.ts             # SQLite connection + schema (repos registry)
-    git.ts            # git helpers (clone, log, authors, url validation)
+    db.ts             # SQLite connection + schema (repos, author tables)
+    git.ts            # git helpers (clone, HEAD author scan, url validation)
+    authors.ts        # author identity resolution: mailmap + manual merges
+    metric-index.ts   # streaming Git history index and cached snapshots
+    metrics.ts        # commit-set aggregation and author ownership
+    metric-types.ts   # metric request/response types
     ingest.ts         # ingestion service (extract/clone + index pipeline)
     types.ts          # shared client/server types
   app/
     page.tsx          # Repositories dashboard (add + monitor repos)
+    metrics/page.tsx  # metrics dashboard, charts, filters, commit picker
+    repos/[id]/page.tsx  # per-repo author page (view/merge/unmerge authors)
     api/repos/...     # REST endpoints above
 scripts/
   rebuild-native.mjs  # better-sqlite3 source build (Ubuntu ABI 109)
