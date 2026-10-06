@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f8fc;
+  --foreground: #17233b;
+  --surface: #ffffff;
+  --line: #e3e8f2;
+  --accent: #4f46e5;
+  --muted: #62718a;
 }
 
 @theme inline {
@@ -14,13 +18,141 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b1120;
+    --foreground: #e5ecf9;
+    --surface: #121d31;
+    --line: #26334d;
+    --accent: #a5b4fc;
+    --muted: #a1afc7;
+    color-scheme: dark;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  background-image: radial-gradient(ellipse at 90% 0%, #6366f10c, transparent 50%);
+  min-height: 100vh;
+}
+
+::selection { background: #a5b4fc66; }
+button, select, input[type="checkbox"] { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+a, button, input, select {
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+:focus-visible { outline: 3px solid #818cf8; outline-offset: 3px; }
+input[type="checkbox"] { accent-color: #4f46e5; width: 15px; height: 15px; }
+input:not([type="checkbox"]), select {
+  background-color: var(--surface);
+  border-color: var(--line);
+  color: var(--foreground);
+  border-radius: 10px;
+}
+input:not([type="checkbox"]):focus, select:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px #6366f115;
+}
+input::file-selector-button { color: var(--accent); }
+
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(18px);
+}
+.app-nav-inner {
+  max-width: 1280px;
+  min-height: 76px;
+  margin: auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.app-brand { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 750; letter-spacing: -.5px; }
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: white;
+  box-shadow: 0 5px 13px #4f46e52b;
+}
+.brand-caption { display: block; margin-top: 1px; font-size: 10px; letter-spacing: .035em; color: var(--muted); font-weight: 500; }
+.nav-links { display: flex; gap: 8px; margin-left: auto; }
+.nav-links a { padding: 8px 13px; border-radius: 9px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.nav-links a:hover { color: var(--accent); background: #6366f10c; }
+.local-badge { display: flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 30px; font-size: 10px; font-weight: 600; color: var(--muted); }
+.local-badge > span { width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 3px #10b98112; }
+
+main { animation: enter-page 350ms ease-out both; }
+main > header {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 30px;
+  background: radial-gradient(ellipse at 100% 0%, #6366f11c, transparent 70%), var(--surface);
+  position: relative;
+}
+main > header h1 { font-size: clamp(1.6rem, 3vw, 2.3rem); letter-spacing: -.045em; font-weight: 700; line-height: 1.2; }
+main > header p { margin-top: 10px; max-width: 640px; line-height: 1.7; }
+main .rounded-xl.border-gray-200 {
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: 16px;
+  box-shadow: 0 3px 6px #17233b03, 0 12px 30px #17233b04;
+}
+main form.rounded-xl { padding: 24px; }
+main form h2 { font-size: 15px; margin-bottom: 18px; }
+main section > h2, main article h3 { letter-spacing: -.02em; }
+main .grid > .rounded-xl.border-gray-200 { position: relative; overflow: hidden; }
+main .grid > .rounded-xl.border-gray-200::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, #6366f1, #a5b4fc);
+}
+main .grid > .rounded-xl.border-gray-200:nth-child(3n)::before { background: linear-gradient(90deg, #14b8a6, #99f6e4); }
+main .grid > .rounded-xl.border-gray-200:nth-child(3n + 2)::before { background: linear-gradient(90deg, #8b5cf6, #ddd6fe); }
+main button.bg-foreground, main a.bg-blue-600, main button.bg-blue-600 {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: white;
+  border: 1px solid #4f46e5;
+  border-radius: 10px;
+  box-shadow: 0 3px 8px #4f46e51c;
+}
+main button.bg-foreground:hover:not(:disabled), main a.bg-blue-600:hover { transform: translateY(-1px); box-shadow: 0 5px 12px #4f46e52b; }
+main button[role="tab"] { border-color: transparent; border-radius: 10px; font-weight: 600; padding: 9px 18px; }
+main button[role="tab"][aria-selected="true"] { color: var(--accent); background: #6366f114; border-color: #818cf833; }
+main [role="tablist"] { border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+table { border-collapse: collapse; }
+thead { background: color-mix(in srgb, var(--surface) 80%, #94a3b8 20%); }
+thead th { font-size: 10px; text-transform: uppercase; letter-spacing: .065em; }
+thead th:first-child { padding-left: 16px; border-radius: 9px 0 0 9px; }
+thead th:last-child { border-radius: 0 9px 9px 0; }
+tbody tr { transition: background 150ms ease; }
+tbody tr:hover { background: #6366f107; }
+tbody td:first-child { padding-left: 16px; }
+tbody td { border-color: var(--line); }
+main footer { border-top: 1px solid var(--line); padding-top: 20px; line-height: 1.8; }
+@keyframes enter-page { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) {
+  .app-nav-inner { min-height: 66px; padding: 10px 16px; gap: 12px; }
+  .local-badge { display: none; }
+  .brand-caption { display: none; }
+  .nav-links { gap: 0; }
+  .nav-links a { padding: 8px; font-size: 12px; }
+  main > header { padding: 22px; }
+  main form.rounded-xl { padding: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
